@@ -1,4 +1,6 @@
 import { chromium, Browser, BrowserContext } from 'playwright';
+import { existsSync } from 'fs';
+import { execSync } from 'child_process';
 import logger from '../utils/logger.js';
 
 /**
@@ -30,9 +32,30 @@ class BrowserManager {
   }
 
   /**
-   * Initialize browser with optimal settings
+   * Chromium이 설치되지 않은 경우 자동으로 설치한다.
+   * 이미지에 바이너리를 포함하지 않아 빌드 이미지 크기를 줄이고,
+   * 첫 사용 시에만 다운로드한다.
    */
+  private ensureChromiumInstalled(): void {
+    if (existsSync(chromium.executablePath())) {
+      return;
+    }
+
+    logger.info('Chromium not found, installing...');
+    try {
+      execSync('./node_modules/.bin/playwright install chromium', {
+        stdio: 'inherit',
+      });
+      logger.info('Chromium installed successfully');
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      logger.error({ errorMessage }, 'Failed to install Chromium');
+      throw new Error(`Failed to install Chromium: ${errorMessage}`);
+    }
+  }
+
   private async initBrowser(): Promise<Browser> {
+    this.ensureChromiumInstalled();
     logger.info('Initializing Playwright browser');
 
     try {

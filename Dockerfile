@@ -23,10 +23,9 @@ ENV NODE_ENV=production
 COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/package.json ./package.json
 
-# Chromium만 설치 + 시스템 의존성
-# node_modules가 변경되지 않으면 이 레이어는 캐시됨
-RUN ./node_modules/.bin/playwright install chromium \
- && ./node_modules/.bin/playwright install-deps chromium
+# Chromium 시스템 의존성만 설치 (브라우저 바이너리는 기동 시 lazy install)
+RUN ./node_modules/.bin/playwright install-deps chromium \
+ && rm -rf /var/lib/apt/lists/*
 
 # 빌드 산출물 + 런타임 파일
 COPY --from=build /app/dist ./dist
