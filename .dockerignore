@@ -1,12 +1,14 @@
 node_modules
+dist
 .git
 .gitignore
 Dockerfile
 README.md
 *.log
+*.csv
+data
 tmp
 .cache
 playwright-report
 test-results
 coverage
-.env
