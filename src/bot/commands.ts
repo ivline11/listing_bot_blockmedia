@@ -75,18 +75,8 @@ export function setupCommands(bot: Bot) {
     const enabled = setting ? setting.enabled === 1 : false;
     const status = enabled ? '✅ 활성화' : '⏸️ 비활성화';
 
-    const processedListings = db.getAllProcessedListings();
-    const recentListings = processedListings.slice(0, 5);
-
-    let message = `상태: ${status}\n`;
-    message += `처리된 상장 공지: ${processedListings.length}개\n\n`;
-
-    if (recentListings.length > 0) {
-      message += '최근 처리된 상장:\n';
-      recentListings.forEach((listing) => {
-        message += `- ${listing.exchange}: ${listing.ticker}\n`;
-      });
-    }
+    // Only show on/off status per user request
+    const message = `상태: ${status}`;
 
     await ctx.reply(message);
   });

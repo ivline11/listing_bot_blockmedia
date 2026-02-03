@@ -1,4 +1,3 @@
-import { extractFirstSentences } from '../utils/text.js';
 import { ExchangeType } from '../bot/filters.js';
 
 /**
@@ -13,22 +12,31 @@ export function generatePressReleaseMessage(
   title: string,
   articleMessage: string,
   ticker: string,
-  exchange: ExchangeType
+  _exchange: ExchangeType
 ): string {
-  // Remove title line from article to get body content
-  // Article format: "Title\n\nBody content..."
+  // Determine body content: if the articleMessage begins with the title
+  // (first non-empty line equals the provided title), remove that title
+  // from the body when building the excerpt. Otherwise, use the full
+  // articleMessage as the body content.
   const lines = articleMessage.split('\n');
-
-  // Skip first line (title) and any empty lines, get body content
-  let bodyStart = 0;
+  // Find first non-empty line
+  let firstNonEmptyIndex = -1;
   for (let i = 0; i < lines.length; i++) {
     if (lines[i].trim().length > 0) {
-      bodyStart = i + 1; // Skip the title line
+      firstNonEmptyIndex = i;
       break;
     }
   }
 
-  const bodyContent = lines.slice(bodyStart).join('\n').trim();
+  let bodyContent = articleMessage.trim();
+  if (firstNonEmptyIndex >= 0) {
+    const firstLine = lines[firstNonEmptyIndex].trim();
+    if (firstLine === title.trim()) {
+      // Remove the title line and any following empty line
+      const afterTitleLines = lines.slice(firstNonEmptyIndex + 1);
+      bodyContent = afterTitleLines.join('\n').trim();
+    }
+  }
 
   // Take first 120 characters from body
   let excerpt = bodyContent.substring(0, 120);

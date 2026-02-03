@@ -57,17 +57,18 @@ function sleep(ms: number): Promise<void> {
 // Preset retry configurations
 export const RETRY_CONFIG = {
   scraping: {
-    maxAttempts: 2,
+    // Allow 3 attempts total (2 retries) as documented
+    maxAttempts: 3,
     delayMs: [500, 2000],
     operationName: 'scraping',
   },
   claude: {
-    maxAttempts: 2,
+    maxAttempts: 3,
     delayMs: [1000, 3000],
     operationName: 'claude_api',
   },
   telegram: {
-    maxAttempts: 2,
+    maxAttempts: 3,
     delayMs: [1000, 3000],
     operationName: 'telegram_send',
   },

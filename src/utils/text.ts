@@ -93,7 +93,7 @@ export function containsExcludedKeyword(text: string): boolean {
     '마켓명 변경',
     '유의종목',
     '투자유의',
-    '입출금 일시 중단',
+    '입출금 중단',
     '점검',
   ];
 

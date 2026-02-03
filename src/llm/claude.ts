@@ -12,6 +12,8 @@ const SYSTEM_PROMPT = `당신은 블록미디어 기사 작성 전문가입니�
 3. 추측, 각색, 추가 정보 삽입을 하지 마세요
 4. 반드시 JSON 형식으로만 응답하세요 (추가 텍스트 없음)
 5. 두 개의 메시지를 모두 생성하세요: article_message, press_release_message
+6. 반드시 맨 윗줄에 제목(Title)을 포함하세요
+
 
 출력 형식:
 {
@@ -80,7 +82,16 @@ ${noticeContent}`;
 
       // Parse and validate JSON
       const parsed = JSON.parse(jsonString);
-      const validated = ClaudeResponseSchema.parse(parsed);
+      let validated = ClaudeResponseSchema.parse(parsed);
+
+      // If press_release_message is missing or too short, apply a simple local fallback
+      if (!validated.press_release_message || validated.press_release_message.length < 50) {
+        logger.warn({ exchange, ticker: parsed.ticker }, 'press_release_message missing or too short — using local fallback');
+        const shortTitle = (validated.title || '').trim();
+        const ticker = (validated.ticker || '').trim();
+        const fallback = `${shortTitle} (${ticker})\n블록미디어에서 상장 관련 소식을 확인하세요.`;
+        validated = { ...validated, press_release_message: fallback } as typeof validated;
+      }
 
       logger.info(
         {

@@ -60,7 +60,7 @@ async function scrapeWithPlaywright(url: string): Promise<string> {
       ];
 
       removeSelectors.forEach((sel) => {
-        document.querySelectorAll(sel).forEach((el) => el.remove());
+        document.querySelectorAll(sel).forEach((el: Element) => el.remove());
       });
 
       // Upbit-specific selectors (priority) - more specific
@@ -93,7 +93,7 @@ async function scrapeWithPlaywright(url: string): Promise<string> {
       }
 
       // Fallback: Find content by looking for specific text patterns
-      const allDivs = Array.from(document.querySelectorAll('div'));
+      const allDivs = Array.from(document.querySelectorAll('div')) as HTMLElement[];
 
       let bestCandidate = '';
       let maxScore = 0;
@@ -274,7 +274,7 @@ function extractContentFromHtml(html: string, url: string): string {
 /**
  * Save debug HTML for troubleshooting
  */
-async function saveDebugHtml(url: string, html: string): Promise<void> {
+async function saveDebugHtml(_url: string, html: string): Promise<void> {
   try {
     const debugDir = './data/debug';
     if (!existsSync(debugDir)) {

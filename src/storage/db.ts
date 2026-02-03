@@ -13,7 +13,7 @@ export interface ProcessedListing {
   id?: number;
   exchange: string;
   ticker: string;
-  first_seen_at: string;
+  first_seen_at?: string;
   notice_url: string;
   notice_hash?: string;
 }
@@ -74,6 +74,18 @@ export class BotDatabase {
 
       CREATE INDEX IF NOT EXISTS idx_job_logs_created_at
         ON job_logs(created_at);
+
+      CREATE TABLE IF NOT EXISTS polled_notices (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        exchange TEXT NOT NULL,
+        notice_id TEXT NOT NULL,
+        notice_url TEXT NOT NULL,
+        processed_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(exchange, notice_id)
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_polled_notices_exchange_notice_id
+        ON polled_notices(exchange, notice_id);
     `);
 
     logger.info('Database migration completed');
@@ -122,6 +134,31 @@ export class BotDatabase {
   getAllProcessedListings(): ProcessedListing[] {
     const stmt = this.db.prepare('SELECT * FROM processed_listings ORDER BY first_seen_at DESC');
     return stmt.all() as ProcessedListing[];
+  }
+
+  // Polled Notices operations (web polling dedup)
+  isNoticePolled(exchange: string, noticeId: string): boolean {
+    const stmt = this.db.prepare(
+      'SELECT 1 FROM polled_notices WHERE exchange = ? AND notice_id = ? LIMIT 1'
+    );
+    return stmt.get(exchange, noticeId) !== undefined;
+  }
+
+  markNoticePollProcessed(exchange: string, noticeId: string, noticeUrl: string): void {
+    const stmt = this.db.prepare(`
+      INSERT OR IGNORE INTO polled_notices (exchange, notice_id, notice_url)
+      VALUES (?, ?, ?)
+    `);
+    stmt.run(exchange, noticeId, noticeUrl);
+    logger.info({ exchange, noticeId }, 'Notice marked as polled');
+  }
+
+  // Check if any polled notices exist for an exchange
+  hasAnyPolledNotices(exchange: string): boolean {
+    const stmt = this.db.prepare(
+      'SELECT 1 FROM polled_notices WHERE exchange = ? LIMIT 1'
+    );
+    return stmt.get(exchange) !== undefined;
   }
 
   // Job Logs operations

@@ -13,15 +13,24 @@ export interface PublishResult {
 export async function publishToTelegram(
   bot: Bot,
   chatId: number,
+  title: string,
   articleMessage: string,
   pressReleaseMessage: string,
   imagePath: string
 ): Promise<PublishResult> {
   try {
+    // Ensure the article message includes the title at the top. Some LLM
+    // outputs may not include the title inside `articleMessage`, so prepend
+    // it when necessary to keep article and press release consistent.
+    let articleToSend = articleMessage;
+    if (title && !articleMessage.trim().startsWith(title.trim())) {
+      articleToSend = `${title}\n\n${articleMessage}`.trim();
+    }
+
     // Message 1: Article content
-    await bot.api.sendMessage(chatId, articleMessage, {
+    await bot.api.sendMessage(chatId, articleToSend, {
       parse_mode: 'HTML',
-      disable_web_page_preview: true,
+      link_preview_options: { is_disabled: true },
     });
 
     logger.info({ chatId }, 'Article message sent');
@@ -54,6 +63,7 @@ export async function publishToTelegram(
 export async function publishToMultipleChats(
   bot: Bot,
   chatIds: number[],
+  title: string,
   articleMessage: string,
   pressReleaseMessage: string,
   imagePath: string
@@ -64,6 +74,7 @@ export async function publishToMultipleChats(
     const result = await publishToTelegram(
       bot,
       chatId,
+      title,
       articleMessage,
       pressReleaseMessage,
       imagePath

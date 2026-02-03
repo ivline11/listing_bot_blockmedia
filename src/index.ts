@@ -2,12 +2,17 @@ import 'dotenv/config';
 import { createBot } from './bot/telegram.js';
 import { setupMessageHandler } from './bot/router.js';
 import { initDatabase } from './storage/db.js';
-import { initClaudeService } from './llm/claude.js';
+import { initLLMProvider, getActiveProviderName } from './llm/provider.js';
+// If you want to temporarily re-enable Claude, uncomment the import below
+// import { initClaudeService } from './llm/claude.js';
 import logger from './utils/logger.js';
 
 async function main() {
   // Validate environment variables
-  const requiredEnvVars = ['TELEGRAM_BOT_TOKEN', 'ANTHROPIC_API_KEY', 'DB_PATH', 'LISTING_SOURCE_CHAT_ID'];
+  const provider = (process.env.LLM_PROVIDER || 'gpt').toLowerCase();
+  const requiredEnvVarsBase = ['TELEGRAM_BOT_TOKEN', 'DB_PATH'];
+  const providerKey = provider === 'claude' ? 'ANTHROPIC_API_KEY' : 'OPENAI_API_KEY';
+  const requiredEnvVars = [...requiredEnvVarsBase, providerKey];
   const missingVars = requiredEnvVars.filter((varName) => !process.env[varName]);
 
   if (missingVars.length > 0) {
@@ -16,9 +21,9 @@ async function main() {
   }
 
   const botToken = process.env.TELEGRAM_BOT_TOKEN!;
-  const anthropicApiKey = process.env.ANTHROPIC_API_KEY!;
   const dbPath = process.env.DB_PATH!;
-  const sourceChatId = parseInt(process.env.LISTING_SOURCE_CHAT_ID!, 10);
+  // Log the raw env var for quick debugging (temporary)
+  logger.info({ LISTING_SOURCE_CHAT_ID: process.env.LISTING_SOURCE_CHAT_ID }, 'Loaded env var');
 
   logger.info('Starting Listing Bot Blockmedia');
 
@@ -26,21 +31,27 @@ async function main() {
   initDatabase(dbPath);
   logger.info({ dbPath }, 'Database initialized');
 
-  // Initialize Claude service
-  initClaudeService(anthropicApiKey);
-  logger.info('Claude service initialized');
+  // Initialize LLM provider (GPT or Claude) based on LLM_PROVIDER env
+  initLLMProvider();
+  logger.info({ provider: getActiveProviderName() }, 'LLM provider initialized');
+
+  // If you want to temporarily enable Claude again, you can uncomment the
+  // following lines. We keep them commented so Claude is inactive by default.
+  // const anthropicApiKey = process.env.ANTHROPIC_API_KEY!;
+  // initClaudeService(anthropicApiKey);
+  // logger.info('Claude service initialized (commented out)');
 
   // Create bot
   const bot = createBot(botToken);
 
-  // Setup message handler for source chat
-  setupMessageHandler(bot, sourceChatId);
+  // Setup message handler for source chats
+  setupMessageHandler(bot);
 
   // Start bot
   logger.info('Starting bot...');
   await bot.start();
 
-  logger.info({ sourceChatId }, 'Bot is running and monitoring source chat');
+  logger.info('Bot is running and monitoring enabled chats');
 
   // Graceful shutdown
   process.once('SIGINT', () => {
