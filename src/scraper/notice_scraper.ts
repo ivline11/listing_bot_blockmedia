@@ -1,5 +1,3 @@
-import { request } from 'undici';
-import * as cheerio from 'cheerio';
 import { writeFileSync, mkdirSync, existsSync } from 'fs';
 import { join } from 'path';
 import browserManager from './browser_manager.js';
@@ -158,120 +156,6 @@ async function scrapeWithPlaywright(url: string): Promise<string> {
 }
 
 /**
- * Scrape announcement content using static HTTP request + cheerio
- */
-async function scrapeStatic(url: string): Promise<string> {
-  logger.info({ url }, 'Attempting static scraping');
-
-  const { statusCode, body } = await request(url, {
-    method: 'GET',
-    headers: {
-      'User-Agent':
-        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-    },
-  });
-
-  if (statusCode !== 200) {
-    throw new Error(`HTTP ${statusCode} when fetching ${url}`);
-  }
-
-  const html = await body.text();
-  logger.debug({ htmlLength: html.length }, 'HTML fetched');
-
-  const content = extractContentFromHtml(html, url);
-
-  logger.info({
-    contentLength: content.length,
-    contentPreview: content.substring(0, 300),
-  }, 'Static scraping completed');
-
-  return content;
-}
-
-/**
- * Extract main content from HTML (for static pages)
- */
-function extractContentFromHtml(html: string, url: string): string {
-  const $ = cheerio.load(html);
-
-  // Remove unwanted elements
-  $('script, style, nav, header, footer, aside, .menu, .navigation').remove();
-
-  let content = '';
-
-  // Try Upbit-specific selectors
-  if (url.includes('upbit.com')) {
-    const upbitSelectors = [
-      '.notice-view-content',
-      '.notice-content',
-      '.view-content',
-      'article',
-      '.article-content',
-    ];
-
-    for (const selector of upbitSelectors) {
-      const element = $(selector);
-      if (element.length > 0) {
-        content = element.text();
-        logger.debug({ selector }, 'Found content with Upbit selector');
-        break;
-      }
-    }
-  }
-
-  // Try Bithumb-specific selectors
-  if (url.includes('bithumb.com')) {
-    const bithumbSelectors = [
-      '.board-content',
-      '.notice-content',
-      '.view-content',
-      'article',
-      '.article-content',
-    ];
-
-    for (const selector of bithumbSelectors) {
-      const element = $(selector);
-      if (element.length > 0) {
-        content = element.text();
-        logger.debug({ selector }, 'Found content with Bithumb selector');
-        break;
-      }
-    }
-  }
-
-  // Fallback: try generic selectors
-  if (!content || content.length < MIN_CONTENT_LENGTH) {
-    const genericSelectors = [
-      'main',
-      'article',
-      '.content',
-      '#content',
-      '.main-content',
-      '.post-content',
-    ];
-
-    for (const selector of genericSelectors) {
-      const element = $(selector);
-      if (element.length > 0) {
-        const text = element.text();
-        if (text.length > content.length) {
-          content = text;
-          logger.debug({ selector }, 'Found content with generic selector');
-        }
-      }
-    }
-  }
-
-  // Last resort: get body text
-  if (!content || content.length < MIN_CONTENT_LENGTH) {
-    content = $('body').text();
-    logger.debug('Using body text as fallback');
-  }
-
-  return normalizeWhitespace(content);
-}
-
-/**
  * Save debug HTML for troubleshooting
  */
 async function saveDebugHtml(_url: string, html: string): Promise<void> {
@@ -298,32 +182,7 @@ async function saveDebugHtml(_url: string, html: string): Promise<void> {
 export async function scrapeNotice(url: string): Promise<ScrapedNotice> {
   logger.info({ url }, 'Starting notice scraping');
 
-  let content = '';
-  let scrapingMethod = 'unknown';
-
-  // Upbit: Always use Playwright (SPA with dynamic rendering)
-  if (url.includes('upbit.com')) {
-    logger.info('Upbit detected - using Playwright directly');
-    content = await scrapeWithPlaywright(url);
-    scrapingMethod = 'playwright';
-  } else {
-    // Bithumb or others: Try static first, then Playwright
-    try {
-      content = await scrapeStatic(url);
-
-      if (content.length >= MIN_CONTENT_LENGTH) {
-        scrapingMethod = 'static';
-      } else {
-        logger.warn('Static scraping returned insufficient content, trying Playwright');
-        content = await scrapeWithPlaywright(url);
-        scrapingMethod = 'playwright-fallback';
-      }
-    } catch (error) {
-      logger.warn({ error }, 'Static scraping failed, falling back to Playwright');
-      content = await scrapeWithPlaywright(url);
-      scrapingMethod = 'playwright-fallback';
-    }
-  }
+  const content = await scrapeWithPlaywright(url);
 
   // Normalize
   const normalized = normalizeWhitespace(content);
@@ -350,7 +209,7 @@ export async function scrapeNotice(url: string): Promise<ScrapedNotice> {
     {
       url,
       length: normalized.length,
-      method: scrapingMethod,
+      method: 'playwright',
       preview: normalized.substring(0, 200),
     },
     'Successfully scraped notice'

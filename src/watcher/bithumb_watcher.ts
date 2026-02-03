@@ -1,5 +1,3 @@
-import { request } from 'undici';
-import * as cheerio from 'cheerio';
 import browserManager from '../scraper/browser_manager.js';
 import logger from '../utils/logger.js';
 
@@ -12,92 +10,12 @@ export interface NoticeItem {
 const BITHUMB_NOTICE_LIST_URL = 'https://feed.bithumb.com/notice?category=9&page=1';
 const BITHUMB_BASE_URL = 'https://feed.bithumb.com';
 
-const HEADERS = {
-  'User-Agent':
-    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-  Accept:
-    'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-  'Accept-Language': 'ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7',
-};
-
 /**
- * Fetch Bithumb notice list
- * Tries static scraping first, falls back to Playwright
+ * Fetch Bithumb notice list via Playwright
  * Filters for "원화마켓 추가" type notices
  */
 export async function fetchBithumbNotices(): Promise<NoticeItem[]> {
   logger.info('Fetching Bithumb notice list');
-
-  try {
-    const notices = await fetchBithumbStatic();
-    if (notices.length > 0) {
-      logger.info({ count: notices.length }, 'Bithumb notices fetched (static)');
-      return notices;
-    }
-    logger.warn('Bithumb static scraping returned 0 notices, trying Playwright');
-  } catch (error) {
-    logger.warn({ error }, 'Bithumb static scraping failed, falling back to Playwright');
-  }
-
-  return fetchBithumbWithPlaywright();
-}
-
-/**
- * Static scraping with undici + cheerio
- */
-async function fetchBithumbStatic(): Promise<NoticeItem[]> {
-  const { statusCode, body } = await request(BITHUMB_NOTICE_LIST_URL, {
-    method: 'GET',
-    headers: HEADERS,
-  });
-
-  if (statusCode !== 200) {
-    throw new Error(`HTTP ${statusCode} from Bithumb notice list`);
-  }
-
-  const html = await body.text();
-  const $ = cheerio.load(html);
-  const notices: NoticeItem[] = [];
-
-  // Try multiple selectors for Bithumb notice list items
-  const selectors = [
-    'a[href*="/notice/"]',
-    '[class*="notice"] a',
-    '[class*="board"] a',
-    'table tbody tr a',
-    '.list-item a',
-    '[class*="list"] a[href]',
-  ];
-
-  for (const selector of selectors) {
-    $(selector).each((_i, el) => {
-      const href = $(el).attr('href') || '';
-      const title = $(el).text().trim();
-
-      // Extract notice ID from URL: /notice/1234 or ?id=1234
-      const idMatch = href.match(/\/notice\/(\d+)/) || href.match(/[?&]id=(\d+)/);
-      if (idMatch && title.length > 3) {
-        const url = href.startsWith('http') ? href : `${BITHUMB_BASE_URL}${href}`;
-        notices.push({
-          noticeId: idMatch[1],
-          title: title,
-          url: url,
-        });
-      }
-    });
-
-    if (notices.length > 0) break;
-  }
-
-  // Filter for 원화마켓 추가
-  return deduplicateAndFilter(notices);
-}
-
-/**
- * Playwright fallback for dynamic pages
- */
-async function fetchBithumbWithPlaywright(): Promise<NoticeItem[]> {
-  logger.info('Fetching Bithumb notices with Playwright');
 
   const context = await browserManager.createContext();
 
@@ -138,10 +56,7 @@ async function fetchBithumbWithPlaywright(): Promise<NoticeItem[]> {
       return results;
     });
 
-    logger.info(
-      { totalNotices: rawNotices.length },
-      'Bithumb notices fetched (Playwright)'
-    );
+    logger.info({ count: rawNotices.length }, 'Bithumb notices fetched');
 
     const notices: NoticeItem[] = rawNotices.map((n) => ({
       noticeId: n.id,
@@ -151,7 +66,7 @@ async function fetchBithumbWithPlaywright(): Promise<NoticeItem[]> {
 
     return deduplicateAndFilter(notices);
   } catch (error) {
-    logger.error({ error }, 'Bithumb Playwright scraping failed');
+    logger.error({ error }, 'Bithumb scraping failed');
     throw error;
   } finally {
     await context.close();

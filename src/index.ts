@@ -5,6 +5,7 @@ import { initDatabase } from './storage/db.js';
 import { initLLMProvider, getActiveProviderName } from './llm/provider.js';
 // If you want to temporarily re-enable Claude, uncomment the import below
 // import { initClaudeService } from './llm/claude.js';
+import browserManager from './scraper/browser_manager.js';
 import logger from './utils/logger.js';
 
 async function main() {
@@ -40,6 +41,10 @@ async function main() {
   // const anthropicApiKey = process.env.ANTHROPIC_API_KEY!;
   // initClaudeService(anthropicApiKey);
   // logger.info('Claude service initialized (commented out)');
+
+  // Initialize Playwright browser upfront (install chromium if needed)
+  await browserManager.getBrowser();
+  logger.info('Playwright browser initialized');
 
   // Create bot
   const bot = createBot(botToken);
