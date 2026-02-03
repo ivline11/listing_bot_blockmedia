@@ -67,6 +67,15 @@ export async function processListingAnnouncement(
 
     // NOTE: duplicate checking removed per user request — process all announcements
 
+    // Mid-pipeline check: abort if chat was disabled during processing
+    if (sourceChatId) {
+      const currentSetting = db.getChatSetting(sourceChatId);
+      if (!currentSetting || currentSetting.enabled !== 1) {
+        logger.info({ sourceChatId }, 'Chat disabled mid-processing, aborting');
+        return { success: false, reason: 'chat_disabled' };
+      }
+    }
+
     // Step 6: Generate article with LLM (GPT) (with retry)
     const llmResponse = await withRetry(
       () => llm.generateArticle(exchange, scrapedNotice.content),
@@ -90,14 +99,21 @@ export async function processListingAnnouncement(
 
     logger.info({ exchange, ticker }, 'Press release message generated');
 
+    // Mid-pipeline check: abort if chat was disabled during processing
+    if (sourceChatId) {
+      const currentSetting = db.getChatSetting(sourceChatId);
+      if (!currentSetting || currentSetting.enabled !== 1) {
+        logger.info({ sourceChatId }, 'Chat disabled mid-processing, aborting');
+        return { success: false, reason: 'chat_disabled' };
+      }
+    }
+
     // Step 8: Determine target chats
     const outputMode = process.env.OUTPUT_MODE || 'broadcast';
     let targetChatIds: number[] = [];
 
     // If this processing request originated from a chat message, reply only to that chat.
     if (sourceChatId) {
-      targetChatIds = [sourceChatId];
-    } else if (outputMode === 'source_only' && sourceChatId) {
       targetChatIds = [sourceChatId];
     } else if (outputMode === 'single') {
       const outputChatId = process.env.OUTPUT_CHAT_ID;
@@ -193,15 +209,7 @@ export function setupMessageHandler(bot: Bot) {
     const chatId = ctx.chat.id;
     const db = getDatabase();
     
-    // Ensure chat is recorded and enabled by default when bot receives a message.
-    // This makes the bot active in chats it has been invited to without requiring /on.
-    let setting = db.getChatSetting(chatId);
-    if (!setting) {
-      db.setChatEnabled(chatId, true);
-      setting = db.getChatSetting(chatId);
-      logger.info({ chatId }, 'New chat detected — auto-enabled');
-    }
-
+    const setting = db.getChatSetting(chatId);
     const enabled = setting ? setting.enabled === 1 : false;
 
     if (!enabled) {
@@ -264,13 +272,7 @@ export function setupMessageHandler(bot: Bot) {
 
     const db = getDatabase();
 
-    let setting = db.getChatSetting(chatId);
-    if (!setting) {
-      db.setChatEnabled(chatId, true);
-      setting = db.getChatSetting(chatId);
-      logger.info({ chatId }, 'New channel detected — auto-enabled');
-    }
-
+    const setting = db.getChatSetting(chatId);
     const enabled = setting ? setting.enabled === 1 : false;
     if (!enabled) return;
 

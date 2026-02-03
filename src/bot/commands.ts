@@ -1,28 +1,6 @@
-import { Bot, Context } from 'grammy';
+import { Bot } from 'grammy';
 import { getDatabase } from '../storage/db.js';
 import logger from '../utils/logger.js';
-
-/**
- * Check if user is admin in the chat
- */
-async function isUserAdmin(ctx: Context): Promise<boolean> {
-  if (!ctx.chat || !ctx.from) {
-    return false;
-  }
-
-  // Allow in private chats
-  if (ctx.chat.type === 'private') {
-    return true;
-  }
-
-  try {
-    const member = await ctx.getChatMember(ctx.from.id);
-    return member.status === 'creator' || member.status === 'administrator';
-  } catch (error) {
-    logger.error({ chatId: ctx.chat.id, userId: ctx.from.id, error }, 'Failed to check admin status');
-    return false;
-  }
-}
 
 /**
  * Setup bot commands
@@ -33,11 +11,6 @@ export function setupCommands(bot: Bot) {
     if (!ctx.chat) return;
 
     const chatId = ctx.chat.id;
-
-    if (!(await isUserAdmin(ctx))) {
-      await ctx.reply('이 명령어는 관리자만 사용할 수 있습니다.');
-      return;
-    }
 
     const db = getDatabase();
     db.setChatEnabled(chatId, true);
@@ -51,11 +24,6 @@ export function setupCommands(bot: Bot) {
     if (!ctx.chat) return;
 
     const chatId = ctx.chat.id;
-
-    if (!(await isUserAdmin(ctx))) {
-      await ctx.reply('이 명령어는 관리자만 사용할 수 있습니다.');
-      return;
-    }
 
     const db = getDatabase();
     db.setChatEnabled(chatId, false);
@@ -85,14 +53,21 @@ export function setupCommands(bot: Bot) {
   bot.command('start', async (ctx) => {
     const message = `🤖 블록미디어 상장 봇
 
-이 봇은 업비트/빗썸의 신규 상장 공지를 자동으로 감지하여 기사를 생성합니다.
+업비트/빗썸 신규 상장 공지를 자동으로 감지하여 기사를 생성합니다.
 
-사용 가능한 명령어:
+─── 명령어 ───
 /on - 봇 활성화
 /off - 봇 비활성화
 /status - 현재 상태 확인
 
-관리자만 /on /off 명령어를 사용할 수 있습니다.`;
+─── 사용법 ───
+상장 공지를 이 방에 포워딩하면 자동으로 기사를 생성합니다.
+
+감지 키워드:
+• 업비트 → 신규 거래지원
+• 빗썸 → 원화마켓 추가
+
+위 키워드가 포함된 메시지만 처리하고, 그 외는 무시합니다.`;
 
     await ctx.reply(message);
   });
